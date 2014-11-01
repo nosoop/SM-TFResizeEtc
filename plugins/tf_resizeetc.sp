@@ -1,5 +1,5 @@
 /**
- * Sourcemod Plugin Template
+ * Released under the MIT License.
  */
 
 #pragma semicolon 1
@@ -7,7 +7,7 @@
 #include <sourcemod>
 #include <sdkhooks>
 
-#define PLUGIN_VERSION          "0.0.0"     // Plugin version.
+#define PLUGIN_VERSION          "0.1.0"     // Plugin version.
 
 public Plugin:myinfo = {
     name = "[TF2] Resize etc.",
@@ -17,7 +17,8 @@ public Plugin:myinfo = {
     url = "http://github.com/nosoop/SM-TFResizeEtc"
 }
 
-new Float:g_rgHandScale[MAXPLAYERS+1], Float:g_rgTorsoScale[MAXPLAYERS+1];
+// Stores scale values.
+new Float:g_rgfHandScale[MAXPLAYERS+1], Float:g_rgfTorsoScale[MAXPLAYERS+1];
 
 public OnPluginStart() {
     RegAdminCmd("sm_resizehand", Command_ResizeHand, ADMFLAG_CHEATS);
@@ -25,16 +26,11 @@ public OnPluginStart() {
     LoadTranslations("common.phrases");
     
     for (new i = MaxClients; i > 0; --i) {
+        SetDefaultBodyScalars(i);
+        
         if (IsClientInGame(i)) {
             OnClientPutInServer(i);
         }
-    }
-}
-
-public OnMapStart() {
-    for (new i = 0; i < MAXPLAYERS; i++) {
-        g_rgHandScale[i] = 1.0;
-        g_rgTorsoScale[i] = 1.0;
     }
 }
 
@@ -44,6 +40,28 @@ public OnClientPutInServer(iClient) {
 
 public OnClientDisconnect(iClient) {
     SDKUnhook(iClient, SDKHook_PostThink, SDKHook_PostThinkResize);
+    SetDefaultBodyScalars(iClient);
+}
+
+/**
+ * Hook to control the torso / hand scaling on a client, updating it after every think tick.
+ */
+public SDKHook_PostThinkResize(iClient) {
+    // TODO possibly inefficent to do after every think tick?
+    if (g_rgfTorsoScale[iClient] != 1.0) {
+        SetEntPropFloat(iClient, Prop_Send, "m_flTorsoScale", g_rgfTorsoScale[iClient]);
+    }
+    if (g_rgfHandScale[iClient] != 1.0) {
+        SetEntPropFloat(iClient, Prop_Send, "m_flHandScale", g_rgfHandScale[iClient]);
+    }
+}
+
+/**
+ * Resets the hand / torso scalar values.
+ */
+SetDefaultBodyScalars(iClient) {
+    g_rgfHandScale[iClient] = 1.0;
+    g_rgfTorsoScale[iClient] = 1.0;
 }
 
 public Action:Command_ResizeHand(iClient, nArgs) {
@@ -73,8 +91,15 @@ public Action:Command_ResizeHand(iClient, nArgs) {
     }
 
     for (new i=0; i<target_count; i++) {
-        g_rgHandScale[target_list[i]] = fScale;
+        g_rgfHandScale[target_list[i]] = fScale;
     }
+    
+    if (tn_is_ml) {
+        ShowActivity2(iClient, "[SM] ", "Changed the hand size of %t to %0.2f", target_name, fScale);
+    } else {
+        ShowActivity2(iClient, "[SM] ", "Changed the hand size of %t to %0.2f", "_s", target_name, fScale);
+    }
+
     return Plugin_Handled;
 }
 
@@ -105,17 +130,13 @@ public Action:Command_ResizeTorso(iClient, nArgs) {
     }
 
     for (new i=0; i<target_count; i++) {
-        g_rgTorsoScale[target_list[i]] = fScale;
+        g_rgfTorsoScale[target_list[i]] = fScale;
+    }
+    
+    if (tn_is_ml) {
+        ShowActivity2(iClient, "[SM] ", "Changed the torso size of %t to %0.2f", target_name, fScale);
+    } else {
+        ShowActivity2(iClient, "[SM] ", "Changed the torso size of %t to %0.2f", "_s", target_name, fScale);
     }
     return Plugin_Handled;
-}
-
-public SDKHook_PostThinkResize(iClient) {
-    // TODO horribly inefficent -- reduce setting rate instead of on every think tick
-    if (g_rgTorsoScale[iClient] != 1.0) {
-        SetEntPropFloat(iClient, Prop_Send, "m_flTorsoScale", g_rgTorsoScale[iClient]);
-    }
-    if (g_rgHandScale[iClient] != 1.0) {
-        SetEntPropFloat(iClient, Prop_Send, "m_flHandScale", g_rgHandScale[iClient]);
-    }
 }
